@@ -1,5 +1,6 @@
 package com.project.bookingApp.entity;
 
+import com.project.bookingApp.enums.PaymentStatus;
 import com.project.bookingApp.enums.RideStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -42,10 +43,19 @@ public class Ride {
     @Enumerated(EnumType.STRING)
     private RideStatus rideStatus;
 
+
     private Double distance;
+
     private Double fare;
 
-    @ElementCollection
-    Set<UUID> rejectedDriverIds = new HashSet<>();
+    @ElementCollection(fetch=FetchType.EAGER)
+    private Set<UUID> rejectedDriverIds = new HashSet<>();
+
+    private Integer rating;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus;
+
+
 
 }

@@ -17,6 +17,7 @@ public class Driver {
     @GeneratedValue
     private UUID driverId;
 
+
     private String driverName;
 
     private String phoneNumber;

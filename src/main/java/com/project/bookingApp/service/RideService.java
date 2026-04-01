@@ -1,9 +1,6 @@
 package com.project.bookingApp.service;
 
-import com.project.bookingApp.dto.DriverRequestDTO;
-import com.project.bookingApp.dto.DriverRideRequestDTO;
-import com.project.bookingApp.dto.DriverRideResponseDTO;
-import com.project.bookingApp.dto.RideRequestDTO;
+import com.project.bookingApp.dto.*;
 import com.project.bookingApp.entity.Driver;
 import com.project.bookingApp.entity.Location;
 import com.project.bookingApp.entity.Ride;
@@ -19,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -26,12 +24,14 @@ public class RideService {
     private final DriverService driverService;
     private final RideRepository rideRepository;
     private final DriverRepository driverRepository;
+    private final FareService fareService;
 
-    public RideService(DriverService driverService,RideRepository rideRepository,DriverRepository driverRepository)
+    public RideService(DriverService driverService,RideRepository rideRepository,DriverRepository driverRepository, FareService fareService)
     {
         this.driverService = driverService;
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
+        this.fareService = fareService;
     }
 
     @Transactional
@@ -54,7 +54,7 @@ public class RideService {
         ride.setDriver(driver);
         ride.setRideStatus(RideStatus.REQUESTED);
         ride.setDistance(HaversineDistance.calculateDistanceKm(pickUpLocation, dto.getDropOffLocation()));
-        ride.setFare(calculateFare(ride.getDistance(),vehicleType));
+        ride.setFare(fareService.calculateFare(vehicleType,ride.getDistance()));
         rideRepository.save(ride);
         return ride;
 
@@ -73,6 +73,10 @@ public class RideService {
             return rideRepository.save(ride);
         }
         else {
+            ride = rideRepository.findById(dto.getRideId()).orElseThrow(()->new RideNotFoundException("Ride with id: " + dto.getRideId() + " doesn't exist"));
+            Set<UUID> rejected = new HashSet<>(ride.getRejectedDriverIds());
+            rejected.add(dto.getDriverId());
+            ride.setRejectedDriverIds(rejected);
             ride.getRejectedDriverIds().add(dto.getDriverId());
             DriverRequestDTO requestDTO = new DriverRequestDTO(ride.getPickupLocation(), ride.getDriver().getVehicleType());
             Driver nextDriver = driverService.findNearestDriver(requestDTO,ride.getRejectedDriverIds());
@@ -121,26 +125,25 @@ public class RideService {
         rideRepository.save(ride);
     }
 
-    private double calculateFare(double distance, VehicleType vehicleType)
+    @Transactional
+    public void rateRide(RateDTO rateDTO)
     {
-        double basefare = 0.0;
-        double perKmFare = 0.0;
-        switch(vehicleType)
-        {
-            case VehicleType.AUTO:
-                basefare = 30.0;
-                perKmFare = 10.0;
-                break;
-            case VehicleType.CAB:
-                basefare = 40.0;
-                perKmFare = 20.0;
-                break;
-            case VehicleType.BIKE:
-                basefare = 25.0;
-                perKmFare = 10.0;
+        Ride ride = rideRepository.findById(rateDTO.getRideId()).orElseThrow(()-> new RideNotFoundException("Ride with id: " + rateDTO.getRating() + " doesn't exist"));
+        if(ride.getRideStatus()!= RideStatus.COMPLETED){
+            throw new RatingNotPossibleException("Rating cannot be done as ride has not completed yet");
         }
+        if(rateDTO.getRating() < 1 || rateDTO.getRating() > 10)
+        {
+            throw new IllegalRatingException("Invalid rating. Please rate again");
+        }
+        ride.setRating(rateDTO.getRating());
+        rideRepository.save(ride);
+    }
 
-        return basefare + (distance * perKmFare);
+    public Set<UUID> getRejectedDriverIds(Long rideId)
+    {
+        Ride ride = rideRepository.findById(rideId).orElseThrow(()-> new RideNotFoundException("Ride with id: " + rideId + " doesn't exist"));
+        return ride.getRejectedDriverIds();
     }
 
 }
