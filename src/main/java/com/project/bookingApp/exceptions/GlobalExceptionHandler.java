@@ -34,4 +34,28 @@ public class GlobalExceptionHandler {
     {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ce.getMessage());
     }
+
+    @ExceptionHandler(StartNotPossibleException.class)
+    public ResponseEntity<String> startNotPossible(StartNotPossibleException se)
+    {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(se.getMessage());
+    }
+
+    @ExceptionHandler(VehicleTypeNotFoundException.class)
+    public ResponseEntity<String> vehicleNotFound(VehicleTypeNotFoundException ve)
+    {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ve.getMessage());
+    }
+
+    @ExceptionHandler(RatingNotPossibleException.class)
+    public ResponseEntity<String> ratingNotPossible(RatingNotPossibleException re)
+    {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(re.getMessage());
+    }
+
+    @ExceptionHandler(IllegalRatingException.class)
+    public ResponseEntity<String> illegalRating(IllegalRatingException ie)
+    {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ie.getMessage());
+    }
 }
