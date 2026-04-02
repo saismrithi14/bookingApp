@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src = "https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+</head>
+<body>
+<script>
+    var stompClient = null;
+    var socket = new SockJS("http://localhost:8080/ws");
+    var stompClient = Stomp.over(socket);
+    stompClient.connect({},function(frame){
+        console.log("Connected");
+        stompClient.subscribe('/topic/ride-status/1',function(message){
+            console.log("Received message body: " + message.body);
+
+        });
+
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User dashboard</title>
+    <script src = "https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+</head>
+<body>
+<div id="message-display">Waiting for ride updates ....</div>
+<script>
+    var stompClient = null;
+    var socket = new SockJS("http://localhost:8080/ws");
+    stompClient = Stomp.over(socket);
+    stompClient.connect({},function(frame){
+
+        console.log("Connected to system");
+    });
+
+    function subscribeToSpecificRide(rideId) {
+        console.log("Turning into ride: " + rideId);
+        stompClient.subscribe('/topic/ride-status/'+rideId, function(message){
+            document.getElementById("message-display").innerText = "Update for ride #" + rideId + ": " + message.body;
+        });
+    }
+
+
+</script>
+</body>
+</html>
