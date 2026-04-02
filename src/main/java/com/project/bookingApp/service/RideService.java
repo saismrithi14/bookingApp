@@ -12,6 +12,7 @@ import com.project.bookingApp.exceptions.*;
 import com.project.bookingApp.repos.DriverRepository;
 import com.project.bookingApp.repos.RideRepository;
 import com.project.bookingApp.utils.HaversineDistance;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +26,15 @@ public class RideService {
     private final RideRepository rideRepository;
     private final DriverRepository driverRepository;
     private final FareService fareService;
+    private final SimpMessagingTemplate simpMessagingTemplate;
 
-    public RideService(DriverService driverService,RideRepository rideRepository,DriverRepository driverRepository, FareService fareService)
+    public RideService(DriverService driverService,RideRepository rideRepository,DriverRepository driverRepository, FareService fareService,SimpMessagingTemplate simpMessagingTemplate)
     {
         this.driverService = driverService;
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
         this.fareService = fareService;
+        this.simpMessagingTemplate = simpMessagingTemplate;
     }
 
     @Transactional
@@ -47,7 +50,6 @@ public class RideService {
         Driver driver = driverService.findNearestDriver(driverdto, new HashSet<>());
 
         Ride ride = new Ride();
-
         ride.setUserId(UUID.randomUUID());
         ride.setPickupLocation(dto.getPickUpLocation());
         ride.setDropOffLocation(dto.getDropOffLocation());
@@ -55,9 +57,17 @@ public class RideService {
         ride.setRideStatus(RideStatus.REQUESTED);
         ride.setDistance(HaversineDistance.calculateDistanceKm(pickUpLocation, dto.getDropOffLocation()));
         ride.setFare(fareService.calculateFare(vehicleType,ride.getDistance()));
-        rideRepository.save(ride);
+        rideRepository.saveAndFlush(ride);
+        simpMessagingTemplate.convertAndSend("/topic/ride-status/"+ ride.getRideId(),"You've successfully requested you're ride. Please wait for a driver to be assigned to you");
+        DriverRideRequestDTO rideRequestDTO = new DriverRideRequestDTO();
+        rideRequestDTO.setRideId(ride.getRideId());
+        rideRequestDTO.setDriverId(ride.getDriver().getDriverId());
+        rideRequestDTO.setPickUpLocation(ride.getPickupLocation());
+        rideRequestDTO.setDroppOffLocation(ride.getDropOffLocation());
+        rideRequestDTO.setDistance(ride.getDistance());
+        rideRequestDTO.setFare(ride.getFare());
+        simpMessagingTemplate.convertAndSend("/topic/driver-offers/"+ driver.getDriverId(), rideRequestDTO);
         return ride;
-
     }
 
     @Transactional
@@ -69,7 +79,8 @@ public class RideService {
             ride.setRideStatus(RideStatus.ACCEPTED);
             Driver driver = driverRepository.findById(dto.getDriverId()).orElseThrow(()->new DriverNotFoundException("Driver with id: " + dto.getDriverId() + " doesn't exist"));
             driver.setDriverStatus(DriverStatus.ON_RIDE);
-            driverRepository.save(driver);
+            driverRepository.saveAndFlush(driver);
+            simpMessagingTemplate.convertAndSend("/topic/ride-status/" + ride.getRideId(), driver.getDriverName() + " has accepted your request!!");
             return rideRepository.save(ride);
         }
         else {
@@ -80,8 +91,29 @@ public class RideService {
             ride.getRejectedDriverIds().add(dto.getDriverId());
             DriverRequestDTO requestDTO = new DriverRequestDTO(ride.getPickupLocation(), ride.getDriver().getVehicleType());
             Driver nextDriver = driverService.findNearestDriver(requestDTO,ride.getRejectedDriverIds());
-            ride.setDriver(nextDriver);
-            return rideRepository.save(ride);
+            if(nextDriver != null)
+            {
+                ride.setDriver(nextDriver);
+                rideRepository.saveAndFlush(ride);
+                simpMessagingTemplate.convertAndSend("/topic/ride-status/"+ride.getRideId(),"Driver was busy, matching you with new driver......");
+
+                DriverRideRequestDTO rideRequestDTO = new DriverRideRequestDTO();
+                rideRequestDTO.setRideId(ride.getRideId());
+                rideRequestDTO.setDriverId(ride.getDriver().getDriverId());
+                rideRequestDTO.setPickUpLocation(ride.getPickupLocation());
+                rideRequestDTO.setDroppOffLocation(ride.getDropOffLocation());
+                rideRequestDTO.setDistance(ride.getDistance());
+                rideRequestDTO.setFare(ride.getFare());
+                simpMessagingTemplate.convertAndSend("/topic/driver-offers/"+ nextDriver.getDriverId(), rideRequestDTO);
+
+            }
+            else {
+                simpMessagingTemplate.convertAndSend("/topic/ride-status/"+ride.getRideId(), "Sorry, no drivers available. Please try again later");
+                ride.setRideStatus(RideStatus.CANCELLED);
+                simpMessagingTemplate.convertAndSend("/topic/ride-status/" + ride.getRideId(), "Ride has been cancelled. Please try again in sometime.");
+            }
+
+            return rideRepository.saveAndFlush(ride);
 
         }
     }
@@ -97,7 +129,8 @@ public class RideService {
         driver.setDriverStatus(DriverStatus.AVAILABLE);
         driverRepository.save(driver);
         ride.setDriver(driver);
-        rideRepository.save(ride);
+        rideRepository.saveAndFlush(ride);
+        simpMessagingTemplate.convertAndSend("/topic/ride-status/" + rideId,"You have reached your destination! Please pay " + ride.getDriver().getDriverName() + " " + ride.getFare() + " rupees");
     }
 
     @Transactional
@@ -110,7 +143,8 @@ public class RideService {
         driver.setDriverStatus(DriverStatus.AVAILABLE);
         driverRepository.save(driver);
         ride.setDriver(driver);
-        rideRepository.save(ride);
+        rideRepository.saveAndFlush(ride);
+        simpMessagingTemplate.convertAndSend("/topic/ride-status/" + rideId,"Uh-Oh, your ride has been cancelled");
 
     }
 
@@ -122,7 +156,8 @@ public class RideService {
             throw new StartNotPossibleException("Ride is not accepted by any driver so it cannot be started");
         }
         ride.setRideStatus(RideStatus.IN_PROGRESS);
-        rideRepository.save(ride);
+        rideRepository.saveAndFlush(ride);
+        simpMessagingTemplate.convertAndSend("/topic/ride-status/" + rideId,ride.getDriver().getDriverName() + " has started your ride!");
     }
 
     @Transactional

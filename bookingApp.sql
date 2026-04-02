@@ -1,4 +1,5 @@
 
+
 SELECT current_database();
 ALTER USER bookingAdmin WITH PASSWORD 'bookingadmin';
 ALTER USER bookingAdmin RENAME TO bookingadmin;
@@ -25,7 +26,7 @@ GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO bookingAdmin;
 --SELECTING FROM TABLES --
 SELECT * FROM booking_schema.driver;
 SELECT * FROM booking_schema.ride;
-SELECT * FROM booking_schema.fare;
+SELECT * FROM booking_scheam.fare;
 SELECT * FROM booking_schema.ride_rejected_driver_ids;
 
 --DELETE ALL ENTRIES FROM TABLES--

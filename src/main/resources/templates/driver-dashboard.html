@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Driver DashBoard</title>
+    <script src = "https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+</head>
+<body>
+<h2>Driver Online status:</h2>
+<div id="status">Disconnected</div>
+<hr>
+<h3>New Ride offers</h3>
+<div id="offer-box" style="border:1px solid black; padding:10px; background:#f0f0f0;">
+    No Offers yet................
+</div>
+<script>
+    var stompClient = null;
+    var socket = SockJS("http://localhost:8080/ws");
+    stompClient = Stomp.over(socket);
+    stompClient.connect({}, function(frame){
+    document.getElementById("status").innerText = "Connected - Awaiting UUID";
+    console.log("Connected to driver");
+    });
+
+    function goOnline(driverId){
+    console.log("Driver: " + driverId + " is now online");
+    document.getElementById("status").innerText = "Online! Looking for rides";
+    stompClient.subscribe("/topic/driver-offers/" + driverId, function(message){
+        var ride = JSON.parse(message.body);
+        console.log("New Ride offer received: " + ride);
+
+        document.getElementById("offer-box").innerHTML=`
+        <strong> New Ride Request </strong>
+        Ride Id: ${ride.rideId} <br>
+        From: ${ride.pickUpLocation.latitude},${ride.pickUpLocation.longitude}<br>
+        <button onclick="acceptRide(${ride.rideId})">Accept</button>
+        <button onclick="rejectRide(${ride.rideId})">Reject</button>`;
+    });
+    }
+
+    function acceptRide(rideId){
+    alert("Accepting Ride # "+ rideId);
+    }
+
+    function rejectRide(rideId){
+    alert("Rejecting ride #" + rideId);
+    }
+
+</script>
+</body>
+</html>
